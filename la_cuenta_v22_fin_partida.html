@@ -1,0 +1,297 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Cuenta v2.1</title>
+<style>
+body{font-family:Arial,sans-serif;background:#E6A447;color:#4b2e16;padding:10px;margin:0}
+.card{background:#f8f1e5;border:3px solid #4b2e16;border-radius:16px;padding:12px;margin-bottom:12px}
+h1,h2,h3{margin:.3em 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+button{border:2px solid #4b2e16;border-radius:10px;padding:8px;background:#fff}
+.small{font-size:12px}
+.player{background:#fff;padding:6px;border-radius:8px;margin:4px 0}
+.leader{background:#fff1aa}
+.ticketrow{display:flex;justify-content:space-between}
+select,input{padding:8px;border-radius:8px;border:2px solid #4b2e16}
+</style>
+</head>
+<body>
+
+<div class="card">
+<h1>🍻 LA CUENTA</h1>
+</div>
+
+<div class="card">
+<h2>Partida</h2>
+<select id="numPlayers">
+<option>3</option><option>4</option><option>5</option>
+<option>6</option><option>7</option><option>8</option>
+</select>
+<button onclick="createInputs()">Crear partida</button>
+<div id="playerInputs"></div>
+</div>
+
+<div id="game" style="display:none">
+
+<div class="card">
+<h2>🏆 Clasificación</h2>
+<div id="ranking"></div>
+</div>
+
+<div class="card">
+<h2>🧾 Ticket</h2>
+<div id="ticket"></div>
+<h3 id="ticketTotal">TOTAL: 0 €</h3>
+<button onclick="removeLast()">↩️ Último</button>
+<button onclick="clearTicket()">🗑️ Vaciar</button>
+</div>
+
+<div class="card">
+<h2>🥗 Verduras</h2>
+<div class="grid" id="veg"></div>
+
+<h2>🐟 Mar</h2>
+<div class="grid" id="sea"></div>
+
+<h2>🥩 Carne</h2>
+<div class="grid" id="meat"></div>
+
+<h2>🍷 Especiales</h2>
+<div class="grid" id="special"></div>
+
+<h2>🔥 Quemados</h2>
+<div class="grid" id="burned"></div>
+</div>
+
+<div class="card">
+<h2>💸 Pago</h2>
+<select id="payMode" onchange="renderPayers()">
+<option value="one">Paga uno</option>
+<option value="two">A medias</option>
+<option value="all">Entre todos</option>
+</select>
+<div id="payerArea"></div>
+<br>
+<button onclick="closeRound()">Cerrar ronda</button>
+<button onclick="undoRound()">↩️ Deshacer ronda</button>
+</div>
+
+<div class="card">
+<h2>📜 Historial</h2>
+<div id="history"></div>
+</div>
+
+</div>
+
+<script>
+let players=[];
+let ticket=[];
+let rounds=[];
+
+const categories={
+veg:[["Aceitunas",10],["Gazpacho",20],["Patatas bravas",30],["Tortilla",40],["Pimientos",50],["Ensaladilla",60],["Berenjenas",70],["Tabla quesos",100]],
+sea:[["Mejillones",10],["Sardinas",20],["Calamares",30],["Chipirones",40],["Anchoa",50],["Pulpo",60],["Gambas",70],["Percebes",100]],
+meat:[["Chorizo",10],["Croquetas",20],["Albóndiga",30],["Pincho moruno",40],["Morcilla",50],["Callos",60],["Rabo de toro",70],["Jamón Jabugo",100]],
+special:[["🎂 Pastel",40],["☕ Café",0],["🍷 Vino","wine"]],
+burned:[["🔥 0",0],["🔥 -10",-10],["🔥 -20",-20],["🔥 -30",-30],["🔥 -40",-40],["🔥 -50",-50],["🔥 -60",-60],["🔥 -70",-70]]
+};
+
+function startMoney(n){ return 900+(n-3)*100; }
+
+function wineValue(n){
+const table=[0,30,60,120,180,240];
+return Math.floor(n/5)*240 + table[n%5];
+}
+
+function createInputs(){
+let n=parseInt(document.getElementById("numPlayers").value);
+let html="";
+for(let i=0;i<n;i++){
+html+=`<input id="p${i}" value="Jugador ${i+1}"><br>`;
+}
+html+=`<button onclick="startGame(${n})">Empezar</button>`;
+document.getElementById("playerInputs").innerHTML=html;
+}
+
+function startGame(n){
+players=[];
+ticket=[];
+rounds=[];
+
+for(let i=0;i<n;i++){
+players.push({
+name:document.getElementById("p"+i).value,
+money:startMoney(n)
+});
+}
+
+document.getElementById("game").style.display="block";
+renderRanking();
+renderCards();
+renderTicket();
+renderPayers();
+}
+
+function renderCards(){
+for(const cat in categories){
+let html="";
+categories[cat].forEach(item=>{
+html+=`<button class="small" onclick="addCard('${item[0]}','${item[1]}')">${item[0]}</button>`;
+});
+document.getElementById(cat).innerHTML=html;
+}
+}
+
+function addCard(name,value){
+ticket.push({name:name,value:value});
+renderTicket();
+}
+
+function removeLast(){
+ticket.pop();
+renderTicket();
+}
+
+function clearTicket(){
+ticket=[];
+renderTicket();
+}
+
+function getTotal(){
+let total=0;
+let wines=0;
+
+ticket.forEach(t=>{
+if(t.value==="wine") wines++;
+else total+=Number(t.value);
+});
+
+return total + wineValue(wines);
+}
+
+function renderTicket(){
+let html="";
+let wines=0;
+
+ticket.forEach(t=>{
+if(t.value==="wine") wines++;
+else html+=`<div class="ticketrow"><span>${t.name}</span><span>${t.value}€</span></div>`;
+});
+
+if(wines){
+html+=`<div class="ticketrow"><span>🍷 Vino x${wines}</span><span>${wineValue(wines)}€</span></div>`;
+}
+
+document.getElementById("ticket").innerHTML=html;
+document.getElementById("ticketTotal").innerText="TOTAL: "+getTotal().toFixed(2)+" €";
+}
+
+function renderRanking(){
+let sorted=[...players].sort((a,b)=>b.money-a.money);
+let html="";
+sorted.forEach((p,i)=>{
+html+=`<div class="player ${i===0?'leader':''}">${i===0?'👑 ':''}${p.name}: ${p.money.toFixed(2)}€</div>`;
+});
+document.getElementById("ranking").innerHTML=html;
+}
+
+function renderPayers(){
+let opts=players.map((p,i)=>`<option value="${i}">${p.name}</option>`).join("");
+
+if(payMode.value==="one"){
+payerArea.innerHTML=`<select id="payer1">${opts}</select>`;
+}else if(payMode.value==="two"){
+payerArea.innerHTML=`<select id="payer1">${opts}</select><select id="payer2">${opts}</select>`;
+}else{
+payerArea.innerHTML="";
+}
+}
+
+function closeRound(){
+let total=getTotal();
+if(total===0) return;
+
+let changes=[];
+let txt="";
+
+if(payMode.value==="one"){
+let p=Number(document.getElementById("payer1").value);
+players[p].money-=total;
+changes.push([p,total]);
+txt=players[p].name+" pagó "+total.toFixed(2)+"€";
+}
+
+if(payMode.value==="two"){
+let a=Number(document.getElementById("payer1").value);
+let b=Number(document.getElementById("payer2").value);
+players[a].money-=total/2;
+players[b].money-=total/2;
+changes.push([a,total/2],[b,total/2]);
+txt=players[a].name+" y "+players[b].name+" pagaron "+(total/2).toFixed(2)+"€";
+}
+
+if(payMode.value==="all"){
+let share=total/players.length;
+players.forEach((p,i)=>{
+p.money-=share;
+changes.push([i,share]);
+});
+txt="Todos pagaron "+share.toFixed(2)+"€";
+}
+
+rounds.push({txt:txt,changes:changes});
+
+ticket=[];
+renderTicket();
+renderRanking();
+renderHistory();
+checkGameOver();
+}
+
+function renderHistory(){
+document.getElementById("history").innerHTML=rounds.slice().reverse().map(r=>"<div>"+r.txt+"</div>").join("");
+}
+
+function undoRound(){
+if(rounds.length===0) return;
+
+let r=rounds.pop();
+
+r.changes.forEach(c=>{
+players[c[0]].money+=c[1];
+});
+
+renderRanking();
+renderHistory();
+checkGameOver();
+}
+
+
+function checkGameOver(){
+const bankrupt = players.some(p => p.money <= 0);
+if(!bankrupt) return;
+
+const ranking=[...players].sort((a,b)=>b.money-a.money);
+
+let msg="🏁 FIN DE LA PARTIDA\n\n";
+ranking.forEach((p,i)=>{
+const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":"🏅";
+msg += medal+" "+p.name+" — "+p.money.toFixed(2)+"€\n";
+});
+
+msg += "\n¡"+ranking[0].name+" gana la partida!";
+
+if(confirm(msg + "\n\nAceptar = Nueva partida\nCancelar = Seguir jugando")){
+ location.reload();
+}
+}
+
+
+createInputs();
+</script>
+
+</body>
+</html>
